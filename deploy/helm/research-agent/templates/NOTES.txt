@@ -1,0 +1,32 @@
+Research Agent {{ .Chart.AppVersion }} is deployed to namespace {{ .Release.Namespace }}.
+{{- $scheme := ternary "https" "http" (not (empty .Values.ingress.tls)) }}
+{{- $apiKeys := include "research-agent.apiKeys.secretName" . }}
+
+Read the client API key:
+  export API_KEY=$(kubectl -n {{ .Release.Namespace }} get secret {{ $apiKeys }} -o jsonpath='{.data.{{ .Values.researchService.security.apiKeyKey }}}' | base64 -d)
+{{- if .Values.ingress.enabled }}
+
+API:        {{ $scheme }}://{{ .Values.ingress.host }}/api/research
+{{- if ne (include "research-agent.springProfile" .) "prod" }}
+Swagger UI: {{ $scheme }}://{{ .Values.ingress.host }}/api/swagger-ui/index.html
+{{- end }}
+{{- $base := printf "%s://%s" $scheme .Values.ingress.host }}
+
+Start a run:
+  curl -X POST {{ $base }}/api/research -H "X-API-Key: $API_KEY" -H "Content-Type: application/json" -d '{"topic": "evaluation methods for LLM agents"}'
+{{- else }}
+
+Forward the API port:
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "research-agent.fullname" . }}-service 8080:8080
+
+Start a run:
+  curl -X POST http://localhost:8080/api/research -H "X-API-Key: $API_KEY" -H "Content-Type: application/json" -d '{"topic": "evaluation methods for LLM agents"}'
+{{- end }}
+{{- if .Values.infra.enabled }}
+
+infra.enabled=true runs single-node PostgreSQL, Kafka and Milvus inside this release. For production, set infra.enabled=false and point external.* at managed services.
+{{- end }}
+{{- if and (eq .Values.agents.llm.provider "claude") (not .Values.anthropic.apiKey) (not .Values.anthropic.existingSecret) }}
+
+WARNING: agents.llm.provider is "claude" but no Anthropic API key is configured. Set anthropic.apiKey or anthropic.existingSecret, or use agents.llm.provider=fake for a demo run.
+{{- end }}

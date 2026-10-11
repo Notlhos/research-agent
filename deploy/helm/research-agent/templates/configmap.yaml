@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "research-agent.fullname" . }}-service
+  labels:
+    {{- include "research-agent.componentLabels" (dict "root" . "component" "research-service") | nindent 4 }}
+data:
+  SPRING_PROFILES_ACTIVE: {{ include "research-agent.springProfile" . | quote }}
+  SPRING_DATASOURCE_URL: {{ include "research-agent.datasourceUrl" . | quote }}
+  SPRING_DATASOURCE_USERNAME: {{ include "research-agent.datasourceUsername" . | quote }}
+  SPRING_KAFKA_BOOTSTRAP_SERVERS: {{ include "research-agent.kafkaBootstrap" . | quote }}
+  RESEARCH_MILVUS_URI: {{ include "research-agent.milvusUri" . | quote }}
+  RESEARCH_MAX_ACTIVE_RUNS: {{ .Values.researchService.maxActiveRuns | quote }}
+  JAVA_TOOL_OPTIONS: {{ .Values.researchService.javaOpts | quote }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "research-agent.fullname" . }}-agents
+  labels:
+    {{- include "research-agent.componentLabels" (dict "root" . "component" "agents") | nindent 4 }}
+data:
+  RA_KAFKA_BOOTSTRAP_SERVERS: {{ include "research-agent.kafkaBootstrap" . | quote }}
+  RA_LLM_PROVIDER: {{ .Values.agents.llm.provider | quote }}
+  RA_LLM_MODEL: {{ .Values.agents.llm.model | quote }}
+  RA_METRICS_PORT: "9100"
+  {{- if .Values.langfuse.enabled }}
+  LANGFUSE_HOST: {{ required "langfuse.host is required when langfuse.enabled=true" .Values.langfuse.host | quote }}
+  {{- end }}

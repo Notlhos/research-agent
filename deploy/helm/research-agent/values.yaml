@@ -1,0 +1,177 @@
+nameOverride: ""
+fullnameOverride: ""
+
+image:
+  registry: ghcr.io/notlhos
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+serviceAccount:
+  create: true
+  name: ""
+
+researchService:
+  image:
+    repository: research-service
+    tag: ""
+  replicas: 1
+  maxActiveRuns: 4
+  springProfile: ""
+  javaOpts: "-XX:MaxRAMPercentage=75"
+  security:
+    apiKey: ""
+    adminApiKey: ""
+    existingSecret: ""
+    apiKeyKey: api-key
+    adminApiKeyKey: admin-api-key
+  extraEnv: []
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      memory: 1Gi
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 10001
+    runAsGroup: 10001
+    fsGroup: 10001
+    seccompProfile:
+      type: RuntimeDefault
+  securityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop:
+        - ALL
+  podDisruptionBudget:
+    enabled: false
+    minAvailable: 1
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+agents:
+  image:
+    repository: research-agents
+    tag: ""
+  llm:
+    provider: claude
+    model: claude-opus-5
+  extraEnv: []
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 10001
+    runAsGroup: 10001
+    fsGroup: 10001
+    seccompProfile:
+      type: RuntimeDefault
+  securityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: false
+    capabilities:
+      drop:
+        - ALL
+  roles:
+    planner:
+      replicas: 1
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        limits:
+          memory: 512Mi
+    writer:
+      replicas: 1
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        limits:
+          memory: 512Mi
+    embedder:
+      replicas: 1
+      resources:
+        requests:
+          cpu: 250m
+          memory: 512Mi
+        limits:
+          memory: 1Gi
+  podDisruptionBudget:
+    enabled: false
+    minAvailable: 1
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+anthropic:
+  apiKey: ""
+  existingSecret: ""
+  existingSecretKey: ANTHROPIC_API_KEY
+
+langfuse:
+  enabled: false
+  host: ""
+  publicKey: ""
+  secretKey: ""
+  existingSecret: ""
+  publicKeyKey: LANGFUSE_PUBLIC_KEY
+  secretKeyKey: LANGFUSE_SECRET_KEY
+
+ingress:
+  enabled: true
+  className: traefik
+  host: research.local
+  annotations: {}
+  paths:
+    - /api
+  tls: []
+
+infra:
+  enabled: true
+  storageClassName: ""
+  postgres:
+    image: postgres:17
+    database: research
+    username: research
+    password: ""
+    existingSecret: ""
+    storage: 10Gi
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        memory: 1Gi
+  kafka:
+    image: apache/kafka:3.9.0
+    clusterId: 4L6g3nShT-eMCtK--X86sw
+    heapOpts: "-Xms512m -Xmx512m"
+    storage: 10Gi
+    resources:
+      requests:
+        cpu: 250m
+        memory: 768Mi
+      limits:
+        memory: 1Gi
+  milvus:
+    image: milvusdb/milvus:v2.6.0
+    storage: 20Gi
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1Gi
+      limits:
+        memory: 3Gi
+
+external:
+  postgres:
+    url: ""
+    username: research
+    existingSecret: ""
+    passwordKey: password
+  kafka:
+    bootstrapServers: ""
+  milvus:
+    uri: ""

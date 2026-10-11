@@ -1,0 +1,110 @@
+{{- $root := . }}
+{{- range $role, $config := .Values.agents.roles }}
+{{- $component := printf "agent-%s" $role }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "research-agent.fullname" $root }}-{{ $component }}
+  labels:
+    {{- include "research-agent.componentLabels" (dict "root" $root "component" $component) | nindent 4 }}
+spec:
+  replicas: {{ $config.replicas }}
+  selector:
+    matchLabels:
+      {{- include "research-agent.selectorLabels" (dict "root" $root "component" $component) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "research-agent.selectorLabels" (dict "root" $root "component" $component) | nindent 8 }}
+      annotations:
+        checksum/config: {{ include (print $root.Template.BasePath "/configmap.yaml") $root | sha256sum }}
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9100"
+        prometheus.io/path: /metrics
+    spec:
+      serviceAccountName: {{ include "research-agent.serviceAccountName" $root }}
+      automountServiceAccountToken: false
+      {{- with $root.Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml $root.Values.agents.podSecurityContext | nindent 8 }}
+      containers:
+        - name: agent
+          image: {{ include "research-agent.image" (dict "root" $root "image" $root.Values.agents.image) | quote }}
+          imagePullPolicy: {{ $root.Values.image.pullPolicy }}
+          args:
+            - --role
+            - {{ $role | quote }}
+          ports:
+            - name: metrics
+              containerPort: 9100
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: {{ include "research-agent.fullname" $root }}-agents
+          env:
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "research-agent.anthropic.secretName" $root }}
+                  key: {{ $root.Values.anthropic.existingSecretKey }}
+                  optional: true
+            {{- if $root.Values.langfuse.enabled }}
+            - name: LANGFUSE_PUBLIC_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "research-agent.langfuse.secretName" $root }}
+                  key: {{ $root.Values.langfuse.publicKeyKey }}
+            - name: LANGFUSE_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "research-agent.langfuse.secretName" $root }}
+                  key: {{ $root.Values.langfuse.secretKeyKey }}
+            {{- end }}
+            {{- with $root.Values.agents.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          startupProbe:
+            httpGet:
+              path: /metrics
+              port: metrics
+            periodSeconds: 5
+            failureThreshold: 36
+          livenessProbe:
+            httpGet:
+              path: /metrics
+              port: metrics
+            periodSeconds: 20
+            timeoutSeconds: 3
+          readinessProbe:
+            httpGet:
+              path: /metrics
+              port: metrics
+            periodSeconds: 10
+            timeoutSeconds: 3
+          resources:
+            {{- toYaml $config.resources | nindent 12 }}
+          securityContext:
+            {{- toYaml $root.Values.agents.securityContext | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+      {{- with $root.Values.agents.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $root.Values.agents.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $root.Values.agents.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+export DEBIAN_FRONTEND=noninteractive
+apt-get update -y
+apt-get install -y curl unzip
+
+curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o /tmp/awscliv2.zip
+unzip -q /tmp/awscliv2.zip -d /tmp
+/tmp/aws/install --update
+
+curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="${k3s_version}" sh -s - server \
+  --tls-san "${public_ip}" \
+  --write-kubeconfig-mode 0600
+
+cat > /usr/local/bin/refresh-ecr-credentials <<'SCRIPT'
+#!/usr/bin/env bash
+set -euo pipefail
+password="$(aws ecr get-login-password --region ${region})"
+k3s kubectl create namespace "${k8s_namespace}" --dry-run=client -o yaml | k3s kubectl apply -f -
+k3s kubectl -n "${k8s_namespace}" create secret docker-registry ecr-credentials \
+  --docker-server="${ecr_registry}" \
+  --docker-username=AWS \
+  --docker-password="$${password}" \
+  --dry-run=client -o yaml | k3s kubectl apply -f -
+SCRIPT
+chmod 0755 /usr/local/bin/refresh-ecr-credentials
+
+cat > /etc/systemd/system/refresh-ecr-credentials.service <<'UNIT'
+[Unit]
+Description=Refresh the ECR image pull secret
+After=k3s.service
+Requires=k3s.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/refresh-ecr-credentials
+UNIT
+
+cat > /etc/systemd/system/refresh-ecr-credentials.timer <<'UNIT'
+[Unit]
+Description=Refresh the ECR image pull secret every 6 hours
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=6h
+
+[Install]
+WantedBy=timers.target
+UNIT
+
+until k3s kubectl get nodes >/dev/null 2>&1; do
+  sleep 5
+done
+
+systemctl daemon-reload
+systemctl enable --now refresh-ecr-credentials.timer
+/usr/local/bin/refresh-ecr-credentials

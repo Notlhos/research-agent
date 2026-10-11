@@ -1,0 +1,122 @@
+{{- if gt (int .Values.researchService.replicas) 1 }}
+{{- fail "researchService.replicas must be 1: run admission is not coordinated across replicas" }}
+{{- end }}
+{{- $component := "research-service" }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "research-agent.fullname" . }}-service
+  labels:
+    {{- include "research-agent.componentLabels" (dict "root" . "component" $component) | nindent 4 }}
+spec:
+  replicas: {{ .Values.researchService.replicas }}
+  selector:
+    matchLabels:
+      {{- include "research-agent.selectorLabels" (dict "root" . "component" $component) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "research-agent.selectorLabels" (dict "root" . "component" $component) | nindent 8 }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8081"
+        prometheus.io/path: /actuator/prometheus
+    spec:
+      serviceAccountName: {{ include "research-agent.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.researchService.podSecurityContext | nindent 8 }}
+      containers:
+        - name: research-service
+          image: {{ include "research-agent.image" (dict "root" . "image" .Values.researchService.image) | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+            - name: management
+              containerPort: 8081
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: {{ include "research-agent.fullname" . }}-service
+          env:
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "research-agent.postgres.secretName" . }}
+                  key: {{ include "research-agent.postgres.secretKey" . }}
+            - name: RESEARCH_SECURITY_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "research-agent.apiKeys.secretName" . }}
+                  key: {{ .Values.researchService.security.apiKeyKey }}
+            - name: RESEARCH_SECURITY_ADMIN_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "research-agent.apiKeys.secretName" . }}
+                  key: {{ .Values.researchService.security.adminApiKeyKey }}
+            {{- with .Values.researchService.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          startupProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: management
+            periodSeconds: 5
+            failureThreshold: 36
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: management
+            periodSeconds: 15
+            timeoutSeconds: 3
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: management
+            periodSeconds: 10
+            timeoutSeconds: 3
+          resources:
+            {{- toYaml .Values.researchService.resources | nindent 12 }}
+          securityContext:
+            {{- toYaml .Values.researchService.securityContext | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+      {{- with .Values.researchService.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.researchService.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.researchService.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "research-agent.fullname" . }}-service
+  labels:
+    {{- include "research-agent.componentLabels" (dict "root" . "component" $component) | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "research-agent.selectorLabels" (dict "root" . "component" $component) | nindent 4 }}
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      protocol: TCP

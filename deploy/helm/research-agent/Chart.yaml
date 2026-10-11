@@ -1,0 +1,14 @@
+apiVersion: v2
+name: research-agent
+description: LLM research agent with a Spring Boot orchestrator, Python agents over Kafka and Milvus vector search
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - llm
+  - ai-agents
+  - kafka
+  - milvus
+  - spring-boot
+maintainers:
+  - name: Maksym Brovko

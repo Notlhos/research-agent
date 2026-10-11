@@ -1,0 +1,118 @@
+{{- if .Values.infra.enabled }}
+{{- $name := include "research-agent.milvus.name" . }}
+{{- $milvus := .Values.infra.milvus }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "research-agent.componentLabels" (dict "root" . "component" "milvus") | nindent 4 }}
+data:
+  embedEtcd.yaml: |
+    listen-client-urls: http://0.0.0.0:2379
+    advertise-client-urls: http://0.0.0.0:2379
+    quota-backend-bytes: 4294967296
+    auto-compaction-mode: revision
+    auto-compaction-retention: '1000'
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "research-agent.componentLabels" (dict "root" . "component" "milvus") | nindent 4 }}
+spec:
+  clusterIP: None
+  selector:
+    {{- include "research-agent.selectorLabels" (dict "root" . "component" "milvus") | nindent 4 }}
+  ports:
+    - name: grpc
+      port: 19530
+      targetPort: grpc
+    - name: http
+      port: 9091
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "research-agent.componentLabels" (dict "root" . "component" "milvus") | nindent 4 }}
+spec:
+  serviceName: {{ $name }}
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "research-agent.selectorLabels" (dict "root" . "component" "milvus") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "research-agent.selectorLabels" (dict "root" . "component" "milvus") | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: milvus
+          image: {{ $milvus.image | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args: ["milvus", "run", "standalone"]
+          ports:
+            - name: grpc
+              containerPort: 19530
+            - name: http
+              containerPort: 9091
+          env:
+            - name: ETCD_USE_EMBED
+              value: "true"
+            - name: ETCD_DATA_DIR
+              value: /var/lib/milvus/etcd
+            - name: ETCD_CONFIG_PATH
+              value: /milvus/configs/embedEtcd.yaml
+            - name: COMMON_STORAGETYPE
+              value: local
+            - name: DEPLOY_MODE
+              value: STANDALONE
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 10
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 3
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 20
+            timeoutSeconds: 3
+          resources:
+            {{- toYaml $milvus.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/milvus
+            - name: config
+              mountPath: /milvus/configs/embedEtcd.yaml
+              subPath: embedEtcd.yaml
+      volumes:
+        - name: config
+          configMap:
+            name: {{ $name }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        {{- with .Values.infra.storageClassName }}
+        storageClassName: {{ . | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ $milvus.storage }}
+{{- end }}

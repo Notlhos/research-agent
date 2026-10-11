@@ -1,0 +1,31 @@
+{{- if .Values.researchService.podDisruptionBudget.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "research-agent.fullname" . }}-service
+  labels:
+    {{- include "research-agent.componentLabels" (dict "root" . "component" "research-service") | nindent 4 }}
+spec:
+  minAvailable: {{ .Values.researchService.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "research-agent.selectorLabels" (dict "root" . "component" "research-service") | nindent 6 }}
+{{- end }}
+{{- if .Values.agents.podDisruptionBudget.enabled }}
+{{- $root := . }}
+{{- range $role, $config := .Values.agents.roles }}
+{{- $component := printf "agent-%s" $role }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "research-agent.fullname" $root }}-{{ $component }}
+  labels:
+    {{- include "research-agent.componentLabels" (dict "root" $root "component" $component) | nindent 4 }}
+spec:
+  minAvailable: {{ $root.Values.agents.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "research-agent.selectorLabels" (dict "root" $root "component" $component) | nindent 6 }}
+{{- end }}
+{{- end }}
