@@ -1,0 +1,16 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: research-service
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["research-service:8081"]
+
+  - job_name: research-agents
+    static_configs:
+      - targets: ["agent-planner:9100", "agent-writer:9100", "agent-embedder:9100"]
+
+  - job_name: traefik
+    static_configs:
+      - targets: ["traefik:8080"]
