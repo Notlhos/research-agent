@@ -1,0 +1,38 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "research-agents"
+version = "0.1.0"
+description = "Kafka-driven LLM agents (planner, writer, embedder) for the Research Agent platform."
+requires-python = ">=3.12"
+dependencies = [
+    "anthropic>=1.0",
+    "confluent-kafka>=2.5",
+    "pydantic>=2.7",
+    "pydantic-settings>=2.3",
+    "fastembed>=0.4",
+    "prometheus-client>=0.20",
+    "langfuse>=3.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "ruff>=0.6"]
+
+[project.scripts]
+research-agents = "research_agents.__main__:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/research_agents"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
