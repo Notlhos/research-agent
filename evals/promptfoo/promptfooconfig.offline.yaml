@@ -1,0 +1,23 @@
+description: Research Agent writer - smoke test of the eval harness with the fake LLM provider
+
+providers:
+  - id: file://provider.py
+    label: writer-agent-offline
+
+prompts:
+  - "{{fixture}}"
+
+defaultTest:
+  assert:
+    - type: python
+      value: file://assertions.py:citations_are_grounded
+    - type: python
+      value: file://assertions.py:source_coverage
+
+tests:
+  - description: RAG evaluation methods
+    vars:
+      fixture: rag-evaluation.json
+  - description: LLM agents and tool use
+    vars:
+      fixture: llm-agents-tool-use.json

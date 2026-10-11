@@ -1,0 +1,29 @@
+description: Research Agent writer - grounding, coverage and report quality
+
+providers:
+  - id: file://provider.py
+    label: writer-agent
+
+prompts:
+  - "{{fixture}}"
+
+defaultTest:
+  assert:
+    - type: python
+      value: file://assertions.py:citations_are_grounded
+    - type: python
+      value: file://assertions.py:source_coverage
+    - type: llm-rubric
+      provider: anthropic:messages:claude-opus-5
+      value: >-
+        The output is a JSON literature report. It directly addresses the topic, every factual claim is
+        attributed to a cited source, the sections are organised and non-repetitive, and it does not state
+        facts that are unlikely to appear in paper abstracts.
+
+tests:
+  - description: RAG evaluation methods
+    vars:
+      fixture: rag-evaluation.json
+  - description: LLM agents and tool use
+    vars:
+      fixture: llm-agents-tool-use.json
