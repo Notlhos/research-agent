@@ -1,0 +1,119 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  research-service:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/research-service
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+      - run: bash gradlew build --no-daemon
+
+  agents:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: agents
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -e ".[dev]"
+      - run: ruff check .
+      - run: ruff format --check .
+      - run: pytest
+
+  helm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4
+      - run: helm lint deploy/helm/research-agent --set anthropic.apiKey=ci
+      - run: |
+          curl -sL https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz | tar xz
+          helm template ra deploy/helm/research-agent --set anthropic.apiKey=ci | ./kubeconform -strict -summary -ignore-missing-schemas -
+
+  terraform:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: deploy/terraform/aws
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3
+      - run: terraform fmt -check -recursive
+      - run: terraform init -backend=false
+      - run: terraform validate
+
+  images:
+    needs: [e2e]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        include:
+          - name: research-service
+            context: services/research-service
+          - name: research-agents
+            context: agents
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - run: echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/${{ matrix.name }}" >> "$GITHUB_ENV"
+      - run: docker build -t "$IMAGE:${{ github.sha }}" ${{ matrix.context }}
+      - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ env.IMAGE }}:${{ github.sha }}
+          severity: CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+      - if: github.event_name == 'push'
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - if: github.event_name == 'push'
+        run: docker push "$IMAGE:${{ github.sha }}"
+      - if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          docker tag "$IMAGE:${{ github.sha }}" "$IMAGE:$VERSION"
+          docker push "$IMAGE:$VERSION"
+
+  e2e:
+    needs: [research-service, agents]
+    runs-on: ubuntu-latest
+    env:
+      RA_LLM_PROVIDER: fake
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - run: docker compose up -d --build --wait research-service
+      - run: docker compose up -d
+      - run: bash scripts/e2e.sh "retrieval augmented generation evaluation"
+      - run: |
+          docker build -t research-evals:local evals/promptfoo
+          docker run --rm -e RA_LLM_PROVIDER=fake -v "$PWD:/repo" research-evals:local \
+            eval -c promptfooconfig.offline.yaml --no-cache --no-progress-bar --no-write
+      - if: failure()
+        run: docker compose logs --tail 200
+      - if: always()
+        run: docker compose down -v
