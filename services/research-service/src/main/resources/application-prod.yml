@@ -1,0 +1,14 @@
+research:
+  kafka:
+    create-topics: false
+
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
+management:
+  endpoint:
+    health:
+      show-details: never

@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                      http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <changeSet id="202609251200-1 create papers table" author="Maksym Brovko">
+        <createTable tableName="papers">
+            <column name="arxiv_id" type="varchar(64)">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="title" type="text">
+                <constraints nullable="false"/>
+            </column>
+            <column name="summary" type="text">
+                <constraints nullable="false"/>
+            </column>
+            <column name="authors" type="text[]">
+                <constraints nullable="false"/>
+            </column>
+            <column name="published" type="varchar(10)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="url" type="text">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="timestamptz">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_by" type="varchar(64)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="modified_at" type="timestamptz"/>
+            <column name="modified_by" type="varchar(64)"/>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="202609251200-2 create research_runs table" author="Maksym Brovko">
+        <createTable tableName="research_runs">
+            <column name="id" type="uuid">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="topic" type="varchar(300)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="status" type="varchar(16)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="attempt" type="int">
+                <constraints nullable="false"/>
+            </column>
+            <column name="step_attempt" type="int">
+                <constraints nullable="false"/>
+            </column>
+            <column name="step_started_at" type="timestamptz"/>
+            <column name="queries" type="text[]">
+                <constraints nullable="false"/>
+            </column>
+            <column name="found_paper_ids" type="text[]">
+                <constraints nullable="false"/>
+            </column>
+            <column name="source_paper_ids" type="text[]">
+                <constraints nullable="false"/>
+            </column>
+            <column name="report_json" type="text"/>
+            <column name="llm_calls" type="int">
+                <constraints nullable="false"/>
+            </column>
+            <column name="input_tokens" type="bigint">
+                <constraints nullable="false"/>
+            </column>
+            <column name="output_tokens" type="bigint">
+                <constraints nullable="false"/>
+            </column>
+            <column name="cache_read_input_tokens" type="bigint">
+                <constraints nullable="false"/>
+            </column>
+            <column name="cache_creation_input_tokens" type="bigint">
+                <constraints nullable="false"/>
+            </column>
+            <column name="error" type="text"/>
+            <column name="version" type="bigint">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="timestamptz">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_by" type="varchar(64)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="modified_at" type="timestamptz"/>
+            <column name="modified_by" type="varchar(64)"/>
+        </createTable>
+
+        <createIndex tableName="research_runs" indexName="idx_research_runs_status_created_at">
+            <column name="status"/>
+            <column name="created_at"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

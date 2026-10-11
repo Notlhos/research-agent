@@ -1,0 +1,11 @@
+research:
+  admission-interval: PT0.2S
+  recovery-interval: PT1S
+  kafka:
+    create-topics: true
+    partitions: 1
+  milvus:
+    uri: http://localhost:19530
+  security:
+    api-key: test-api-key
+    admin-api-key: test-admin-key

@@ -1,0 +1,71 @@
+server:
+  servlet:
+    context-path: /api
+  shutdown: graceful
+
+spring:
+  application:
+    name: research-service
+  threads:
+    virtual:
+      enabled: true
+  autoconfigure:
+    exclude: org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  liquibase:
+    change-log: classpath:liquibase/db.changelog-master.yaml
+  kafka:
+    consumer:
+      group-id: research-service
+      auto-offset-reset: earliest
+    producer:
+      acks: all
+  data:
+    web:
+      pageable:
+        max-page-size: 100
+
+research:
+  max-active-runs: 4
+  max-step-attempts: 3
+  step-timeout: PT5M
+  papers-per-query: 8
+  retrieval-top-k: 12
+  admission-interval: PT2S
+  recovery-interval: PT15S
+  kafka:
+    create-topics: false
+    partitions: 3
+    replication-factor: 1
+  arxiv:
+    base-url: https://export.arxiv.org/api/query
+    min-interval: PT3S
+    timeout: PT20S
+  milvus:
+    collection: papers
+    dimension: 384
+
+management:
+  server:
+    port: 8081
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  metrics:
+    tags:
+      application: research-service
+    distribution:
+      percentiles-histogram:
+        research.step.duration: true
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui

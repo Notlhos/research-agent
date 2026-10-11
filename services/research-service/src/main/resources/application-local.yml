@@ -1,0 +1,16 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/research
+    username: research
+    password: research
+  kafka:
+    bootstrap-servers: localhost:29092
+
+research:
+  kafka:
+    create-topics: true
+  milvus:
+    uri: http://localhost:19530
+  security:
+    api-key: local-api-key
+    admin-api-key: local-admin-key
